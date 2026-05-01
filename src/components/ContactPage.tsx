@@ -12,14 +12,30 @@ import {
   Facebook,
   Twitter
 } from 'lucide-react';
-import { View } from '../types';
+import { WebsiteQuestion } from '../types';
 
 export const ContactPage: React.FC = () => {
   const [isSubmitted, setIsSubmitted] = React.useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const form = e.currentTarget as HTMLFormElement;
+    const formData = new FormData(form);
+    const nextQuestion: WebsiteQuestion = {
+      id: `web-question-${Date.now()}`,
+      name: String(formData.get('name') || ''),
+      email: String(formData.get('email') || ''),
+      phone: String(formData.get('phone') || ''),
+      programOfInterest: String(formData.get('program') || 'Umum'),
+      question: String(formData.get('question') || ''),
+      source: 'Form Kontak Website',
+      status: 'Baru',
+      createdAt: new Date().toLocaleString('id-ID')
+    };
+    const previous = JSON.parse(localStorage.getItem('theprams_demo_website_questions') || '[]');
+    localStorage.setItem('theprams_demo_website_questions', JSON.stringify([nextQuestion, ...previous]));
     setIsSubmitted(true);
+    form.reset();
     setTimeout(() => setIsSubmitted(false), 5000);
   };
 
@@ -107,20 +123,20 @@ export const ContactPage: React.FC = () => {
                     <div className="grid md:grid-cols-2 gap-6 mb-6">
                        <div className="space-y-2">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nama Lengkap</label>
-                          <input required type="text" placeholder="Contoh: Budi Santoso" className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-brand-blue ring-offset-2 outline-none transition-all placeholder:text-slate-400" />
+                          <input required name="name" type="text" placeholder="Contoh: Budi Santoso" className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-brand-blue ring-offset-2 outline-none transition-all placeholder:text-slate-400" />
                        </div>
                        <div className="space-y-2">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Email Aktif</label>
-                          <input required type="email" placeholder="nama@email.com" className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-brand-blue ring-offset-2 outline-none transition-all placeholder:text-slate-400" />
+                          <input required name="email" type="email" placeholder="nama@email.com" className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-brand-blue ring-offset-2 outline-none transition-all placeholder:text-slate-400" />
                        </div>
                     </div>
                     <div className="space-y-2 mb-6">
                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nomor WhatsApp</label>
-                       <input required type="tel" placeholder="0812-xxxx-xxxx" className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-brand-blue ring-offset-2 outline-none transition-all placeholder:text-slate-400" />
+                       <input required name="phone" type="tel" placeholder="0812-xxxx-xxxx" className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-brand-blue ring-offset-2 outline-none transition-all placeholder:text-slate-400" />
                     </div>
                     <div className="space-y-2 mb-6">
                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Incaran Program</label>
-                       <select className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-brand-blue ring-offset-2 outline-none transition-all text-slate-600">
+                       <select name="program" className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-brand-blue ring-offset-2 outline-none transition-all text-slate-600">
                           <option>Pilih Program...</option>
                           <option>SNBT Kedokteran</option>
                           <option>SKD CPNS</option>
@@ -129,7 +145,7 @@ export const ContactPage: React.FC = () => {
                     </div>
                     <div className="space-y-2 mb-8">
                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ceritakan Kebutuhanmu</label>
-                       <textarea required rows={4} placeholder="Tuliskan kendalamu dalam belajar..." className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-brand-blue ring-offset-2 outline-none transition-all placeholder:text-slate-400" />
+                       <textarea required name="question" rows={4} placeholder="Tuliskan kendalamu dalam belajar..." className="w-full px-5 py-3 rounded-xl border border-slate-100 bg-slate-50 focus:ring-2 focus:ring-brand-blue ring-offset-2 outline-none transition-all placeholder:text-slate-400" />
                     </div>
                     <button type="submit" className="w-full btn-primary text-lg py-4">
                        Kirim Pesan Sekarang

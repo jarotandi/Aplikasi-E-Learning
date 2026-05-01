@@ -1,28 +1,29 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PROGRAMS } from '../constants';
-import { View } from '../types';
+import { Program, View } from '../types';
 import { ArrowRight, CheckCircle2, Search, Filter, Sparkles, BookOpen, Clock, Users } from 'lucide-react';
 
 interface ProgramListingPageProps {
   setView: (v: View) => void;
   setSelectedProgramId: (id: string) => void;
+  programs?: Program[];
 }
 
-export const ProgramListingPage: React.FC<ProgramListingPageProps> = ({ setView, setSelectedProgramId }) => {
+export const ProgramListingPage: React.FC<ProgramListingPageProps> = ({ setView, setSelectedProgramId, programs = PROGRAMS }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<'Semua' | 'Akademik' | 'Kedinasan' | 'CPNS'>('Semua');
+  const [activeCategory, setActiveCategory] = useState('Semua');
 
-  const categories = ['Semua', 'Akademik', 'Kedinasan', 'CPNS'];
+  const categories = useMemo(() => ['Semua', ...Array.from(new Set(programs.map((program) => program.category)))], [programs]);
 
   const filteredPrograms = useMemo(() => {
-    return PROGRAMS.filter(program => {
+    return programs.filter(program => {
       const matchesSearch = program.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                              program.description.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = activeCategory === 'Semua' || program.category === activeCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [searchQuery, activeCategory]);
+  }, [programs, searchQuery, activeCategory]);
 
   return (
     <div className="pt-32 pb-24 min-h-screen bg-slate-50">

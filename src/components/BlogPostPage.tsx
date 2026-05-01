@@ -1,17 +1,38 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, Clock, Calendar, User, Share2, Facebook, MessageCircle, MoreHorizontal, Bookmark, Twitter } from 'lucide-react';
+import { ArrowLeft, Clock, Calendar, User, Facebook, MessageCircle, Bookmark, Twitter, BookOpen, ChevronRight, GraduationCap, Tags } from 'lucide-react';
 import { BLOG_POSTS } from '../constants';
-import { View } from '../types';
+import { BlogPost, View } from '../types';
 import Markdown from 'react-markdown';
 
 interface BlogPostPageProps {
   blogId: string | null;
   setView: (v: View) => void;
+  setSelectedBlogId?: (id: string) => void;
+  posts?: BlogPost[];
 }
 
-export const BlogPostPage: React.FC<BlogPostPageProps> = ({ blogId, setView }) => {
-  const post = BLOG_POSTS.find(p => p.id === blogId);
+export const BlogPostPage: React.FC<BlogPostPageProps> = ({ blogId, setView, setSelectedBlogId, posts = BLOG_POSTS }) => {
+  const post = posts.find(p => p.id === blogId);
+  const headings = React.useMemo(() => {
+    if (!post) return [];
+    return [...post.content.matchAll(/^##\s+(.+)$/gm)].map((match) => {
+      const title = match[1].trim();
+      return {
+        title,
+        id: title.toLowerCase().replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-')
+      };
+    });
+  }, [post]);
+  const categories = React.useMemo(() => Array.from(new Set(posts.map((item) => item.category))), [posts]);
+  const guidePosts = React.useMemo(() => posts.filter((item) => item.id !== post?.id).slice(0, 5), [posts, post?.id]);
+  const markdownWithAnchors = React.useMemo(() => {
+    if (!post) return '';
+    return post.content.replace(/^##\s+(.+)$/gm, (_, title) => {
+      const id = String(title).toLowerCase().replace(/[^a-z0-9\s-]/gi, '').trim().replace(/\s+/g, '-');
+      return `## <span id="${id}"></span>${title}`;
+    });
+  }, [post]);
 
   if (!post) {
     return (
@@ -76,7 +97,7 @@ export const BlogPostPage: React.FC<BlogPostPageProps> = ({ blogId, setView }) =
       </div>
 
       {/* Article Content */}
-      <div className="max-w-4xl mx-auto px-6 -mt-32 pb-40 relative z-10 flex flex-col md:flex-row gap-12">
+      <div className="max-w-7xl mx-auto px-6 -mt-32 pb-40 relative z-10 grid lg:grid-cols-[48px_minmax(0,1fr)_320px] gap-8 lg:gap-10">
         {/* Social Sticky Sidebar */}
         <div className="hidden md:block w-12 sticky top-32 h-fit space-y-4">
            <button className="w-12 h-12 rounded-full bg-white shadow-xl flex items-center justify-center text-slate-400 hover:text-brand-blue transition-all border border-slate-100"><Facebook size={20} /></button>
@@ -86,14 +107,49 @@ export const BlogPostPage: React.FC<BlogPostPageProps> = ({ blogId, setView }) =
            <button className="w-12 h-12 rounded-full bg-white shadow-xl flex items-center justify-center text-slate-400 hover:text-brand-orange transition-all border border-slate-100"><Bookmark size={20} /></button>
         </div>
 
-        <motion.div 
+        <motion.article 
            initial={{ opacity: 0, y: 40 }}
            animate={{ opacity: 1, y: 0 }}
            transition={{ delay: 0.3 }}
            className="flex-1 bg-white rounded-[3.5rem] p-8 md:p-16 shadow-2xl shadow-slate-200/50 border border-slate-100"
         >
+          <div className="relative overflow-hidden rounded-[2.5rem] aspect-video mb-10 bg-slate-100">
+            <img src={post.image} className="w-full h-full object-cover" alt={post.title} />
+          </div>
+
+          {headings.length > 0 && (
+            <div className="mb-10 p-6 rounded-[2rem] bg-slate-50 border border-slate-100">
+              <div className="flex items-center gap-2 mb-4">
+                <BookOpen size={18} className="text-brand-blue" />
+                <h2 className="text-sm font-black text-brand-navy uppercase tracking-widest">Daftar Isi</h2>
+              </div>
+              <div className="grid md:grid-cols-2 gap-2">
+                {headings.map((heading, index) => (
+                  <a key={heading.id} href={`#${heading.id}`} className="flex items-center gap-3 p-3 rounded-xl bg-white border border-slate-100 text-xs font-bold text-slate-600 hover:text-brand-blue hover:border-brand-blue/30 transition-all">
+                    <span className="w-6 h-6 rounded-lg bg-blue-50 text-brand-blue flex items-center justify-center text-[10px] font-black">{index + 1}</span>
+                    {heading.title}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="markdown-body prose prose-slate prose-lg max-w-none">
-             <Markdown>{post.content}</Markdown>
+             <Markdown>{markdownWithAnchors}</Markdown>
+          </div>
+
+          <div className="my-14 p-8 rounded-[2rem] bg-brand-navy text-white overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-brand-blue/20 rounded-full blur-3xl translate-x-1/3 -translate-y-1/3" />
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-brand-orange mb-2">Bimbel The Prams</p>
+                <h3 className="text-2xl font-black mb-2">Butuh roadmap belajar yang lebih terarah?</h3>
+                <p className="text-sm text-white/70 leading-relaxed max-w-xl">Ikuti tryout gratis, lihat analisis kelemahanmu, lalu pilih program belajar yang sesuai target.</p>
+              </div>
+              <button onClick={() => setView('guestRegistration')} className="px-6 py-3 rounded-xl bg-brand-orange text-white text-xs font-black uppercase tracking-widest whitespace-nowrap">
+                Mulai Tryout Gratis
+              </button>
+            </div>
           </div>
 
           {/* Tags */}
@@ -119,7 +175,46 @@ export const BlogPostPage: React.FC<BlogPostPageProps> = ({ blogId, setView }) =
                 Lihat Profil
              </button>
           </div>
-        </motion.div>
+        </motion.article>
+
+        <aside className="lg:sticky lg:top-28 h-fit space-y-6">
+          <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-100">
+            <div className="flex items-center gap-2 mb-5">
+              <GraduationCap size={18} className="text-brand-blue" />
+              <h3 className="text-sm font-black text-brand-navy uppercase tracking-widest">Panduan Lengkap</h3>
+            </div>
+            <div className="space-y-3">
+              {guidePosts.map((guide) => (
+                <button
+                  key={guide.id}
+                  onClick={() => { setSelectedBlogId?.(guide.id); setView('blogPost'); }}
+                  className="w-full text-left p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-brand-blue/30 group transition-all"
+                >
+                  <p className="text-[10px] font-black text-brand-blue uppercase tracking-widest mb-1">{guide.category}</p>
+                  <p className="text-xs font-bold text-brand-navy leading-snug group-hover:text-brand-blue">{guide.title}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-100">
+            <div className="flex items-center gap-2 mb-5">
+              <Tags size={18} className="text-brand-orange" />
+              <h3 className="text-sm font-black text-brand-navy uppercase tracking-widest">Kategori Tulisan</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setView('blogListing')}
+                  className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${category === post.category ? 'bg-brand-blue text-white border-brand-blue' : 'bg-slate-50 text-slate-500 border-slate-100 hover:text-brand-blue'}`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
       </div>
 
       {/* Related Articles */}
@@ -133,11 +228,11 @@ export const BlogPostPage: React.FC<BlogPostPageProps> = ({ blogId, setView }) =
             </div>
             
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-10">
-               {BLOG_POSTS.filter(p => p.id !== post.id).slice(0, 3).map(related => (
+               {posts.filter(p => p.id !== post.id).slice(0, 3).map(related => (
                  <div 
                    key={related.id} 
                    className="bg-white rounded-[2.5rem] p-6 shadow-xl shadow-slate-200/40 border border-slate-100 group cursor-pointer"
-                   onClick={() => { setView('blogPost'); }} // Note: in real app would set state
+                   onClick={() => { setSelectedBlogId?.(related.id); setView('blogPost'); }}
                  >
                     <div className="relative overflow-hidden rounded-[2rem] aspect-video mb-6">
                        <img src={related.image} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" alt="" />

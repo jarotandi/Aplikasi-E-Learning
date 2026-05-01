@@ -98,7 +98,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, user, logo
                   Masuk
                 </button>
                 <button 
-                  onClick={() => setView('login')}
+                  onClick={() => setView('register')}
                   className="px-6 py-2.5 rounded-xl bg-brand-blue text-white font-bold text-sm hover:bg-brand-blue/90 shadow-lg shadow-brand-blue/20 transition-all"
                 >
                   Daftar
@@ -150,7 +150,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, setView, user, logo
                   Masuk
                 </button>
                 <button 
-                  onClick={() => { setView('login'); setIsOpen(false); }}
+                  onClick={() => { setView('register'); setIsOpen(false); }}
                   className="px-6 py-4 rounded-2xl bg-brand-blue text-white font-bold text-sm shadow-lg shadow-brand-blue/20"
                 >
                   Daftar

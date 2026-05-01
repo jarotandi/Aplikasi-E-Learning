@@ -1,0 +1,189 @@
+RINGKASAN WEBSITE UNTUK DIUPLOAD KE GEMINI
+Project: Aplikasi Bimbel The Prams
+Tanggal pengecekan: 1 Mei 2026
+
+TUJUAN FILE
+File ini dibuat agar Gemini bisa memahami gambaran website tanpa perlu membaca seluruh source code terlebih dahulu. Gunakan file ini sebagai konteks awal untuk meminta analisis, revisi copywriting, audit UI/UX, ide fitur, atau rekomendasi teknis.
+
+PROMPT SIAP PAKAI UNTUK GEMINI
+Saya sedang membuat website aplikasi bimbingan belajar bernama The Prams. Tolong analisis ringkasan website berikut dari sisi UI/UX, fitur, copywriting, alur pengguna, dan peluang peningkatan teknis. Berikan rekomendasi yang praktis, berurutan berdasarkan prioritas, dan jelaskan bagian mana yang perlu diperbaiki.
+
+GAMBARAN UMUM
+The Prams adalah website edukasi/bimbingan belajar digital untuk persiapan SNBT Kedokteran, SKD CPNS, dan program akademik/karir lain. Website dibuat sebagai aplikasi React satu halaman dengan navigasi internal berbasis state, bukan routing URL.
+
+STACK TEKNOLOGI
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS 4
+- Lucide React untuk ikon
+- Motion untuk animasi
+- Recharts untuk grafik dashboard
+- LocalStorage untuk penyimpanan demo data
+- Google GenAI dependency tersedia di package, tetapi fitur AI belum terlihat sebagai alur utama di website
+
+CARA MENJALANKAN PROJECT
+1. Install dependency:
+   npm install
+
+2. Jalankan development server:
+   npm run dev
+
+3. Build production:
+   npm run build
+
+HASIL CEK TEKNIS
+- TypeScript check berhasil:
+  npm.cmd run lint
+
+- Production build berhasil:
+  npm.cmd run build
+
+- Catatan build:
+  Vite memberi warning bahwa ukuran bundle JavaScript cukup besar, sekitar 1.4 MB sebelum gzip dan 382 KB setelah gzip. Rekomendasi teknis: pertimbangkan code splitting dengan dynamic import, terutama untuk AdminDashboard yang sangat besar.
+
+STRUKTUR FILE UTAMA
+- src/App.tsx
+  Mengatur semua state global sederhana, perpindahan halaman, user login, program terpilih, blog terpilih, tryout, modal konsultasi, dan akses protected views.
+
+- src/constants.ts
+  Berisi data dummy/static: program, paket harga, FAQ, mentor, testimoni, blog post, live session, tryout, user account, dan hasil tryout.
+
+- src/types.ts
+  Berisi definisi TypeScript untuk View, User, Program, BlogPost, Tryout, Lead, WebsiteQuestion, dan struktur data lain.
+
+- src/index.css
+  Berisi konfigurasi tema Tailwind dan class komponen global seperti card-premium, btn-primary, btn-secondary, dan btn-orange.
+
+- src/components/
+  Berisi semua halaman dan komponen utama website.
+
+HALAMAN DAN FITUR UTAMA
+1. Landing Page
+   - Hero carousel dengan gambar background.
+   - CTA ke program, tryout, dan blog.
+   - Daftar program unggulan.
+   - Section keunggulan The Prams.
+   - FAQ.
+   - Testimoni alumni.
+   - Artikel/blog preview.
+   - Footer dengan kontak.
+
+2. Program Listing dan Program Detail
+   - Menampilkan program seperti SNBT Kedokteran dan SKD CPNS.
+   - Setiap program punya kategori, deskripsi, target peserta, harga, fasilitas, kurikulum, jadwal, mentor, dan paket.
+   - Paket mencakup Gratis, Beasiswa, Starter/Short Course, Premium, dan Ultimate/Pro sesuai program.
+
+3. Login dan Registrasi
+   - Ada mode login, registrasi, dan guest registration.
+   - User dapat masuk sebagai siswa demo atau mencoba tryout gratis.
+   - Data tertentu diarahkan ke localStorage untuk simulasi.
+
+4. Tryout
+   - Halaman daftar tryout.
+   - Halaman ujian.
+   - Halaman hasil tryout dengan skor per subtes, analisis kelemahan, dan rekomendasi belajar.
+   - Hasil tryout juga bisa memicu pencatatan lead untuk kebutuhan follow-up.
+
+5. Dashboard Siswa
+   - Menampilkan progress belajar, akses kelas/materi, dan ajakan upgrade.
+   - Akses premium membuka fitur seperti jadwal kelas dan live session.
+
+6. Learning Page
+   - Menampilkan modul dan lesson.
+   - Beberapa akses dibedakan antara user gratis dan premium.
+
+7. Payment dan Final Registration
+   - Alur pemilihan program/paket.
+   - Simulasi pembayaran atau pendaftaran paket gratis/beasiswa.
+   - Data transaksi disimpan lokal untuk keperluan demo admin.
+
+8. Blog
+   - Blog listing.
+   - Blog detail dengan konten markdown.
+   - Data blog bisa diedit melalui admin dashboard dan disimpan di localStorage.
+
+9. Admin Dashboard
+   - Dashboard demo yang sangat lengkap.
+   - Modul mencakup overview, user, leads, inquiries, marketing, website, finance, programs, content, questions, testimonials, reports, dan settings.
+   - Role demo: Super Admin, Content Manager, Support.
+   - Ada fitur manajemen program, blog, leads, pembayaran, aset, laporan keuangan, audit log, notifikasi, upload video simulasi, dan approval pendaftaran.
+
+10. Konsultasi WhatsApp
+   - Floating button WhatsApp bisa di-drag.
+   - Form konsultasi menyimpan lead dan pertanyaan website ke localStorage.
+   - Setelah submit, membuka link WhatsApp ke nomor admin demo.
+
+MODEL DATA PENTING
+- Program:
+  id, title, category, description, target, price, facilities, image, curriculum, schedule, tutors, packages.
+
+- User:
+  id, name, email, avatar, isPremium, role, accountType, packageName, paymentStatus, phone, school, targetPTN, joinReason, program.
+
+- Lead:
+  id, name, email, phone, programOfInterest, source, status, createdAt, note.
+
+- BlogPost:
+  id, title, excerpt, content, author, category, image, date, readTime, tags.
+
+- Tryout:
+  id, title, category, duration, questions, difficulty, isPremium, status.
+
+PENYIMPANAN DEMO DI LOCALSTORAGE
+Website memakai localStorage untuk menyimpan data demo:
+- theprams_demo_programs
+- theprams_demo_blog_posts
+- theprams_demo_website_questions
+- theprams_demo_leads
+- theprams_demo_users
+- theprams_demo_transactions
+- theprams_demo_payment_proofs
+- theprams_demo_finance_entries
+- theprams_demo_finance_realizations
+- theprams_demo_assets
+- theprams_demo_audit_events
+- theprams_demo_notifications
+
+CATATAN UI/UX
+- Tampilan modern dengan dominan warna hijau teal, navy, kuning/oranye, dan slate.
+- Banyak elemen menggunakan card dengan rounded besar.
+- Landing page sudah kaya konten, tetapi beberapa teks masih campur Bahasa Indonesia dan Bahasa Inggris.
+- Beberapa data masih demo placeholder, misalnya nomor WhatsApp, email support, gambar pravatar, link Google Meet demo, dan konten beberapa artikel lama.
+- Navigasi menggunakan state internal, sehingga URL tidak berubah per halaman. Ini cukup untuk prototype, tetapi kurang ideal untuk SEO, deep link, dan share halaman.
+
+CATATAN TEKNIS DAN PRIORITAS PERBAIKAN
+1. Pecah AdminDashboard
+   File AdminDashboard sangat besar dan memengaruhi ukuran bundle. Pecah menjadi beberapa komponen per tab dan gunakan lazy loading.
+
+2. Tambahkan routing
+   Gunakan React Router atau router sejenis agar halaman punya URL, misalnya /programs, /programs/snbt-kedokteran, /blog/blog-1, /dashboard.
+
+3. Ganti localStorage dengan backend
+   Untuk produksi, data user, pembayaran, leads, blog, dan admin tidak boleh hanya di localStorage.
+
+4. Perbaiki konsistensi bahasa
+   Tentukan apakah website memakai Bahasa Indonesia penuh atau bilingual. Saat ini ada campuran seperti "Why Choose", "Experienced Mentors", dan "Passed Program".
+
+5. Validasi keamanan
+   Pastikan form, role admin, pembayaran, dan upload file memakai validasi backend, autentikasi, otorisasi, dan sanitasi data.
+
+6. SEO dan metadata
+   Tambahkan title, description, Open Graph, sitemap, dan struktur heading yang lebih rapi untuk halaman publik.
+
+7. Optimasi asset
+   Gunakan image optimization, lazy loading gambar, dan code splitting untuk mengurangi waktu load awal.
+
+8. Pisahkan data dummy
+   Data constants cukup besar. Untuk produksi, pindahkan ke database/CMS atau API.
+
+HAL YANG PERLU DITANYAKAN KE GEMINI
+- Apakah positioning The Prams sudah jelas untuk target siswa SNBT Kedokteran dan SKD CPNS?
+- Bagian landing page mana yang paling perlu disederhanakan?
+- Copywriting mana yang perlu dibuat lebih meyakinkan?
+- Bagaimana struktur navigasi yang lebih baik untuk website bimbel ini?
+- Fitur apa yang harus diprioritaskan sebelum produksi?
+- Bagaimana cara menyusun ulang admin dashboard agar lebih ringan dan mudah dikembangkan?
+
+KESIMPULAN
+Website ini sudah layak sebagai prototype aplikasi bimbel digital yang cukup lengkap. Alur publik, tryout, dashboard siswa, pembayaran, blog, konsultasi, dan admin dashboard sudah tersedia. Untuk produksi, prioritas utamanya adalah routing, backend/database, autentikasi, pemecahan AdminDashboard, keamanan pembayaran/upload, dan konsistensi copywriting.

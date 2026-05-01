@@ -29,14 +29,15 @@ import { PROGRAMS, TUTORS, TESTIMONIALS } from '../constants';
 interface ProgramDetailProps {
   programId: string | null;
   setView: (v: View) => void;
+  programs?: Program[];
   selectedPackageId?: string | null;
   setSelectedPackageId?: (id: string | null) => void;
   returnToResult?: boolean;
   setSelectedMentorId?: (id: string) => void;
 }
 
-export const ProgramDetailPage: React.FC<ProgramDetailProps> = ({ programId, setView, selectedPackageId, setSelectedPackageId, returnToResult }) => {
-  const program = useMemo(() => PROGRAMS.find(p => p.id === programId) || PROGRAMS[0], [programId]);
+export const ProgramDetailPage: React.FC<ProgramDetailProps> = ({ programId, setView, programs = PROGRAMS, selectedPackageId, setSelectedPackageId, returnToResult }) => {
+  const program = useMemo(() => programs.find(p => p.id === programId) || programs[0] || PROGRAMS[0], [programs, programId]);
   const programTutors = useMemo(() => TUTORS.filter(t => program.tutors?.includes(t.id)), [program]);
   const programTestimonials = useMemo(() => TESTIMONIALS.filter(t => t.programId === program.id).slice(0, 3), [program]);
   const defaultPackage = useMemo(
@@ -62,7 +63,7 @@ export const ProgramDetailPage: React.FC<ProgramDetailProps> = ({ programId, set
 
   const goToPayment = () => {
     setSelectedPackageId?.(selectedPackage?.id || program.packages?.[0]?.id || null);
-    setView('payment');
+    setView('register');
   };
 
   return (

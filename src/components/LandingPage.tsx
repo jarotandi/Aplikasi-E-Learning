@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PROGRAMS, TESTIMONIALS, US_POINTS, FAQS, TUTORS, CAROUSEL_SLIDES } from '../constants';
-import { View } from '../types';
+import { Program, View } from '../types';
 
 const CustomFAQItem: React.FC<{ 
   faq: any; 
@@ -260,7 +260,7 @@ const HeroCarousel: React.FC<{ setView: (v: View) => void }> = ({ setView }) => 
   );
 };
 
-export const LandingPage: React.FC<{ setView: (v: View) => void }> = ({ setView }) => {
+export const LandingPage: React.FC<{ setView: (v: View) => void; programs?: Program[] }> = ({ setView, programs = PROGRAMS }) => {
   const [openFaqId, setOpenFaqId] = React.useState<string | null>(null);
 
   return (
@@ -279,7 +279,7 @@ export const LandingPage: React.FC<{ setView: (v: View) => void }> = ({ setView 
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {PROGRAMS.map((program) => (
+            {programs.map((program) => (
               <motion.div
                 key={program.id}
                 whileHover={{ y: -10 }}

@@ -19,44 +19,114 @@ import {
   BookOpen,
   Trophy
 } from 'lucide-react';
-import { View, User } from '../types';
+import { Program, View, User } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { PROGRAMS, TRYOUTS } from '../constants';
+import { isValidEmail, isValidIndonesianPhone } from '../utils/security';
 
 interface LoginPageProps {
   setView: (v: View) => void;
   setUser: (u: User) => void;
   setSelectedTryoutId?: (id: string) => void;
+  setSelectedProgramId?: (id: string) => void;
+  setSelectedPackageId?: (id: string | null) => void;
   isGuestModeDefault?: boolean;
   isRegisteringDefault?: boolean;
+  initialProgramId?: string | null;
+  initialPackageId?: string | null;
+  initialUser?: User | null;
+  programs?: Program[];
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ 
   setView, 
   setUser, 
   setSelectedTryoutId,
+  setSelectedProgramId,
+  setSelectedPackageId,
   isGuestModeDefault = false,
-  isRegisteringDefault = false 
+  isRegisteringDefault = false,
+  initialProgramId = null,
+  initialPackageId = null,
+  initialUser = null,
+  programs = PROGRAMS
 }) => {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialUser?.email || '');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [school, setSchool] = useState('');
-  const [address, setAddress] = useState('');
-  const [targetPTN, setTargetPTN] = useState('');
-  const [joinReason, setJoinReason] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState(initialUser?.name || '');
+  const [phone, setPhone] = useState(initialUser?.phone || '');
+  const [school, setSchool] = useState(initialUser?.school || '');
+  const [address, setAddress] = useState(initialUser?.address || '');
+  const [targetPTN, setTargetPTN] = useState(initialUser?.targetPTN || '');
+  const [joinReason, setJoinReason] = useState(initialUser?.joinReason || '');
   const [isLoading, setIsLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(isRegisteringDefault);
   const [error, setError] = useState('');
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isGuestMode, setIsGuestMode] = useState(isGuestModeDefault);
-  const [registrationType, setRegistrationType] = useState<'premium' | 'free' | 'scholarship'>('premium');
-  const [guestProgramId, setGuestProgramId] = useState(PROGRAMS[0]?.id || '');
+  const [registerProgramId, setRegisterProgramId] = useState(initialProgramId || programs[0]?.id || '');
+  const [registerPackageId, setRegisterPackageId] = useState(initialPackageId || programs.find((program) => program.id === (initialProgramId || programs[0]?.id))?.packages?.find((pkg) => pkg.isPopular)?.id || programs[0]?.packages?.[0]?.id || '');
+  const [guestProgramId, setGuestProgramId] = useState(programs[0]?.id || '');
   const [guestTryoutId, setGuestTryoutId] = useState(TRYOUTS[0]?.id || '');
+  const [isRegistrationVerificationOpen, setIsRegistrationVerificationOpen] = useState(false);
+  const [verificationMethod, setVerificationMethod] = useState<'email' | 'phone'>('email');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationSent, setVerificationSent] = useState(false);
+  const isPasswordValid = password.length >= 8 && /[A-Z]/.test(password) && /[^A-Za-z0-9]/.test(password);
+
+  const selectedRegisterProgram = programs.find((program) => program.id === registerProgramId) || programs[0] || PROGRAMS[0];
+  const selectedRegisterPackage = selectedRegisterProgram.packages?.find((pkg) => pkg.id === registerPackageId) || selectedRegisterProgram.packages?.find((pkg) => pkg.isPopular) || selectedRegisterProgram.packages?.[0] || null;
+  const isSelectedPackageFree = selectedRegisterPackage?.price === 'Rp 0';
+  const isScholarshipPackage = selectedRegisterPackage?.name.toLowerCase().includes('beasiswa') || selectedRegisterPackage?.id.toLowerCase().includes('scholar');
+
+  React.useEffect(() => {
+    const program = programs.find((item) => item.id === registerProgramId);
+    if (!program?.packages?.length) return;
+    if (!program.packages.some((pkg) => pkg.id === registerPackageId)) {
+      setRegisterPackageId(program.packages.find((pkg) => pkg.isPopular)?.id || program.packages[0].id);
+    }
+  }, [programs, registerProgramId, registerPackageId]);
+
+  const buildRegisteredUser = (): User => ({
+    id: isSelectedPackageFree ? 'u_free' : 'u_premium',
+    name: name || (isSelectedPackageFree ? 'Siswa Gratisan' : 'Budi Santoso'),
+    email: email || 'siswa@example.com',
+    avatar: `https://i.pravatar.cc/150?u=${registerPackageId || 'siswa'}`,
+    isPremium: false,
+    premiumUntil: undefined,
+    role: email === 'admin@theprams.com' ? 'Admin' : 'Student',
+    accountType: isScholarshipPackage ? 'Scholarship' : isSelectedPackageFree ? 'Free' : 'Paid',
+    packageName: selectedRegisterPackage?.name || '-',
+    paymentStatus: isScholarshipPackage ? 'Scholarship Review' : isSelectedPackageFree ? 'Free Active' : 'Pending Payment',
+    address,
+    targetPTN,
+    joinReason,
+    phone,
+    school,
+    program: programs.find((program) => program.id === registerProgramId)?.title || 'SNBT Kedokteran'
+  });
+
+  const completeVerifiedRegistration = () => {
+    if (!verificationSent) {
+      setError('Kirim kode verifikasi terlebih dahulu.');
+      return;
+    }
+    if (verificationCode.trim() !== '123456') {
+      setError('Kode verifikasi salah. Gunakan kode demo 123456.');
+      return;
+    }
+
+    const mockUser = buildRegisteredUser();
+    setUser(mockUser);
+    setSelectedProgramId?.(registerProgramId);
+    setSelectedPackageId?.(selectedRegisterPackage?.id || null);
+    setError('');
+    setView('payment');
+  };
 
   const guestTryoutOptions = TRYOUTS.filter((tryout) => {
-    const selectedProgram = PROGRAMS.find((program) => program.id === guestProgramId);
+    const selectedProgram = programs.find((program) => program.id === guestProgramId);
     if (!selectedProgram) return true;
     const programText = `${selectedProgram.title} ${selectedProgram.category}`.toLowerCase();
     const tryoutText = `${tryout.title} ${tryout.category}`.toLowerCase();
@@ -119,9 +189,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         return;
       }
 
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
+      if (!isValidEmail(email)) {
         setError('Format email tidak valid.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (isRegistering) {
+        if (!name.trim()) {
+          setError('Nama lengkap wajib diisi.');
+          setIsLoading(false);
+          return;
+        }
+        if (!isPasswordValid) {
+          setError('Password minimal 8 karakter, mengandung 1 huruf besar, dan 1 simbol.');
+          setIsLoading(false);
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError('Password dan ulangi password belum sama.');
+          setIsLoading(false);
+          return;
+        }
+        if (!isValidIndonesianPhone(phone)) {
+          setError('Nomor WhatsApp harus diawali 08, 62, atau +62 dan berisi minimal 9 digit.');
+          setIsLoading(false);
+          return;
+        }
+        setVerificationMethod('email');
+        setVerificationCode('');
+        setVerificationSent(false);
+        setIsRegistrationVerificationOpen(true);
         setIsLoading(false);
         return;
       }
@@ -140,17 +238,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         isPremium: type === 'premium',
         premiumUntil: type === 'premium' ? '2026-12-31' : undefined,
         role: email === 'admin@theprams.com' ? 'Admin' : 'Student',
+        accountType: type === 'premium' ? 'Paid' : 'Free',
+        packageName: type === 'guest' ? 'Tryout Gratis' : type === 'premium' ? 'Premium Demo' : 'Gratis',
+        paymentStatus: type === 'premium' ? 'Payment Approved' : 'Free Active',
         address,
         targetPTN,
         joinReason,
         phone,
         school,
-        program: PROGRAMS.find((program) => program.id === guestProgramId)?.title || 'SNBT Kedokteran'
+        program: programs.find((program) => program.id === (isRegistering ? registerProgramId : guestProgramId))?.title || 'SNBT Kedokteran'
       };
       
       setUser(mockUser);
       if (type === 'guest') {
-        const selectedProgram = PROGRAMS.find((program) => program.id === guestProgramId);
+        const selectedProgram = programs.find((program) => program.id === guestProgramId);
         const selectedTryout = TRYOUTS.find((tryout) => tryout.id === guestTryoutId);
         const previous = JSON.parse(localStorage.getItem('theprams_demo_leads') || '[]');
         localStorage.setItem('theprams_demo_leads', JSON.stringify([
@@ -168,6 +269,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         ]));
         setSelectedTryoutId?.(guestTryoutId);
         setView('exam');
+      } else if (isRegistering) {
+        setSelectedProgramId?.(registerProgramId);
+        setSelectedPackageId?.(selectedRegisterPackage?.id || null);
+        setView('payment');
       } else {
         setView(mockUser.role === 'Admin' ? 'admin' : 'dashboard');
       }
@@ -297,7 +402,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                             onChange={(e) => {
                               const nextProgramId = e.target.value;
                               setGuestProgramId(nextProgramId);
-                              const nextProgram = PROGRAMS.find((program) => program.id === nextProgramId);
+                              const nextProgram = programs.find((program) => program.id === nextProgramId);
                               const nextTryout = TRYOUTS.find((tryout) => {
                                 const programText = `${nextProgram?.title ?? ''} ${nextProgram?.category ?? ''}`.toLowerCase();
                                 const tryoutText = `${tryout.title} ${tryout.category}`.toLowerCase();
@@ -308,7 +413,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                             className="w-full px-5 py-4 rounded-xl bg-slate-50 border border-slate-100 outline-none font-bold text-slate-600"
                             required
                           >
-                            {PROGRAMS.map((program) => (
+                            {programs.map((program) => (
                               <option key={program.id} value={program.id}>{program.title}</option>
                             ))}
                           </select>
@@ -357,12 +462,112 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                  </motion.form>
               ) : isRegistering ? (
                  <motion.div 
-                   key="register"
+                   key={isRegistrationVerificationOpen ? "verify-register" : "register"}
                    initial={{ opacity: 0, y: 20 }}
                    animate={{ opacity: 1, y: 0 }}
                    exit={{ opacity: 0, y: -20 }}
                    className="space-y-6"
                  >
+                  {isRegistrationVerificationOpen ? (
+                    <>
+                      <div className="p-6 rounded-3xl bg-blue-50 border border-blue-100">
+                        <p className="text-xs font-black uppercase tracking-widest text-brand-blue mb-2">Verifikasi Pendaftaran</p>
+                        <h3 className="text-2xl font-black text-brand-navy mb-2">Pilih metode verifikasi</h3>
+                        <p className="text-sm text-slate-600 leading-relaxed">
+                          Verifikasi email atau nomor HP terlebih dahulu. Setelah terverifikasi, kamu akan diarahkan ke pembayaran.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVerificationMethod('email');
+                            setVerificationSent(false);
+                            setVerificationCode('');
+                            setError('');
+                          }}
+                          className={`p-4 rounded-2xl border-2 text-left transition-all ${verificationMethod === 'email' ? 'border-brand-blue bg-blue-50 text-brand-blue' : 'border-slate-100 bg-white text-slate-500'}`}
+                        >
+                          <Mail size={20} className="mb-3" />
+                          <span className="text-sm font-black">Email</span>
+                          <p className="text-xs mt-1">{email}</p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVerificationMethod('phone');
+                            setVerificationSent(false);
+                            setVerificationCode('');
+                            setError('');
+                          }}
+                          className={`p-4 rounded-2xl border-2 text-left transition-all ${verificationMethod === 'phone' ? 'border-brand-blue bg-blue-50 text-brand-blue' : 'border-slate-100 bg-white text-slate-500'}`}
+                        >
+                          <Target size={20} className="mb-3" />
+                          <span className="text-sm font-black">No. HP</span>
+                          <p className="text-xs mt-1">{phone}</p>
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVerificationSent(true);
+                          setError('');
+                        }}
+                        className="w-full btn-secondary py-4"
+                      >
+                        {verificationMethod === 'email' ? 'Kirim Link Verifikasi Email' : 'Kirim Kode OTP WhatsApp'}
+                      </button>
+
+                      {verificationSent && (
+                        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-xs text-emerald-800 leading-relaxed">
+                          {verificationMethod === 'email'
+                            ? `Link verifikasi demo dikirim ke ${email}. Masukkan kode demo 123456 untuk melanjutkan.`
+                            : `Kode OTP demo dikirim ke ${phone}. Masukkan kode demo 123456 untuk melanjutkan.`}
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
+                          {verificationMethod === 'email' ? 'Kode dari Link Email' : 'Kode OTP'}
+                        </label>
+                        <input
+                          value={verificationCode}
+                          onChange={(event) => {
+                            setVerificationCode(event.target.value);
+                            setError('');
+                          }}
+                          className="w-full px-5 py-4 rounded-xl bg-slate-50 border border-slate-100 outline-none font-bold text-slate-600 tracking-[0.3em]"
+                          placeholder="123456"
+                          inputMode="numeric"
+                        />
+                      </div>
+
+                      {error && (
+                        <div className="p-4 rounded-2xl bg-red-50 border border-red-100 text-xs font-bold text-red-600">
+                          {error}
+                        </div>
+                      )}
+
+                      <button type="button" onClick={completeVerifiedRegistration} className="w-full btn-primary py-5 text-sm uppercase tracking-widest font-black">
+                        Verifikasi & Lanjut Pembayaran <ArrowRight size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsRegistrationVerificationOpen(false);
+                          setVerificationSent(false);
+                          setVerificationCode('');
+                          setError('');
+                        }}
+                        className="w-full text-center text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-brand-blue transition-colors"
+                      >
+                        Kembali ke Form Pendaftaran
+                      </button>
+                    </>
+                  ) : (
+                    <>
                     <div className="grid md:grid-cols-2 gap-4">
                        <div className="md:col-span-2">
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Nama Lengkap</label>
@@ -394,24 +599,40 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                             placeholder="••••••••" 
                           />
                        </div>
+                       <div className="md:col-span-2">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Ulangi Password</label>
+                          <input 
+                            type="password" 
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 outline-none font-medium text-slate-600" 
+                            placeholder="Ketik ulang password" 
+                          />
+                          {password && !isPasswordValid && <p className="text-xs text-red-500 font-bold mt-2">Password minimal 8 karakter, mengandung 1 huruf besar, dan 1 simbol.</p>}
+                          {confirmPassword && password !== confirmPassword && <p className="text-xs text-red-500 font-bold mt-2">Password dan ulangi password belum sama.</p>}
+                       </div>
                        <div>
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Program Pilihan</label>
-                          <select className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 outline-none font-bold text-slate-600">
-                             <option>SNBT Kedokteran 2025</option>
-                             <option>CPNS/Kedinasan Intensif</option>
-                             <option>Reguler SNBT 2025</option>
+                          <select
+                            value={registerProgramId}
+                            onChange={(e) => setRegisterProgramId(e.target.value)}
+                            className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 outline-none font-bold text-slate-600"
+                          >
+                             {programs.map((program) => (
+                               <option key={program.id} value={program.id}>{program.title}</option>
+                             ))}
                           </select>
                        </div>
                        <div>
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Tipe Pendaftaran</label>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Paket Belajar</label>
                           <select 
-                            value={registrationType}
-                            onChange={(e) => setRegistrationType(e.target.value as 'premium' | 'free' | 'scholarship')}
+                            value={registerPackageId}
+                            onChange={(e) => setRegisterPackageId(e.target.value)}
                             className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 outline-none font-bold text-slate-600"
                           >
-                             <option value="premium">Premium (Full Access)</option>
-                             <option value="free">Akun Gratis (Fitur Terbatas)</option>
-                             <option value="scholarship">Beasiswa (Khusus)</option>
+                             {selectedRegisterProgram.packages?.map((pkg) => (
+                               <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+                             ))}
                           </select>
                        </div>
                        <div>
@@ -465,30 +686,44 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                        </div>
                     </div>
 
-                    {registrationType === 'free' && (
+                    {selectedRegisterPackage && (
                       <div className="p-5 rounded-2xl bg-blue-50 border border-blue-100">
                         <div className="flex items-start gap-3">
                           <div className="p-2 bg-white rounded-xl text-brand-blue">
                             <ShieldCheck size={18} />
                           </div>
                           <div>
-                            <p className="text-sm font-black text-brand-navy mb-2">Akun Gratis</p>
+                            <p className="text-sm font-black text-brand-navy mb-2">{selectedRegisterPackage.name}</p>
+                            <p className="text-xs font-bold text-brand-blue mb-3">{selectedRegisterPackage.price} - {selectedRegisterPackage.duration}</p>
                             <ul className="space-y-1 text-xs font-medium text-slate-500 leading-relaxed">
-                              <li>Akses dashboard dasar dan profil belajar.</li>
-                              <li>Bisa mengikuti tryout gratis yang tersedia.</li>
-                              <li>Materi premium, kelas intensif, analitik lengkap, dan bimbingan mentor tetap terkunci sampai upgrade paket.</li>
+                              {selectedRegisterPackage.features.slice(0, 5).map((feature) => (
+                                <li key={feature}>{feature}</li>
+                              ))}
                             </ul>
+                            {isScholarshipPackage && (
+                              <p className="mt-3 text-xs font-bold text-amber-700">
+                                Jalur beasiswa tetap melalui verifikasi email/No. HP, lalu masuk halaman pembayaran Rp 0 untuk pencatatan dan review admin.
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
                     )}
 
-                    <button className="w-full btn-primary py-5 text-sm uppercase tracking-widest font-black" onClick={(e) => handleAuth(e, registrationType === 'free' ? 'free' : 'premium')}>
-                       {registrationType === 'free' ? 'Buat Akun Gratis' : 'Konfirmasi Pendaftaran'} <ArrowRight size={18} />
+                    {error && (
+                      <div className="p-4 rounded-2xl bg-red-50 border border-red-100 text-xs font-bold text-red-600">
+                        {error}
+                      </div>
+                    )}
+
+                    <button className="w-full btn-primary py-5 text-sm uppercase tracking-widest font-black" onClick={(e) => handleAuth(e, isSelectedPackageFree ? 'free' : 'premium')}>
+                       Lanjut ke Verifikasi <ArrowRight size={18} />
                     </button>
                     <p className="text-center text-sm text-slate-500 font-medium">
                        Sudah punya akun? <button onClick={() => setIsRegistering(false)} className="text-brand-blue font-bold hover:underline">Login di sini</button>
                     </p>
+                    </>
+                  )}
                  </motion.div>
               ) : (
                  <motion.div 

@@ -7,22 +7,23 @@ import { View, BlogPost } from '../types';
 interface BlogListingPageProps {
   setView: (v: View) => void;
   setSelectedBlogId: (id: string) => void;
+  posts?: BlogPost[];
 }
 
-export const BlogListingPage: React.FC<BlogListingPageProps> = ({ setView, setSelectedBlogId }) => {
+export const BlogListingPage: React.FC<BlogListingPageProps> = ({ setView, setSelectedBlogId, posts = BLOG_POSTS }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('Semua');
 
-  const categories = ['Semua', 'Tips & Trik', 'Info PTN', 'Materi', 'Inspirasi'];
+  const categories = ['Semua', 'Tips & Trik', 'Info PTN', 'Materi', 'Inspirasi', 'Literasi'];
 
-  const filteredPosts = BLOG_POSTS.filter(post => {
+  const filteredPosts = posts.filter(post => {
     const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           post.excerpt.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = activeCategory === 'Semua' || post.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const featuredPost = BLOG_POSTS[0];
+  const featuredPost = posts[0];
 
   return (
     <div className="min-h-screen bg-white">

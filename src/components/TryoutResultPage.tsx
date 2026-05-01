@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { TryoutSubtestResult, User, View } from '../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { CURRICULUM, TRYOUTS, TRYOUT_SUBTEST_RESULTS } from '../constants';
+import { escapeHtml } from '../utils/security';
 
 const MOCK_QUESTIONS = [
   { id: 1, text: "Jika semua peserta The Prams rajin berlatih tryout, maka rata-rata skor nasional akan meningkat...", isCorrect: true, userAns: "C", keyAns: "C", explanation: "Berdasarkan prinsip Modus Tollens: Jika P maka Q. Ternyata tidak Q. Maka kesimpulannya tidak P. Dalam konteks ini, karena rata-rata skor tidak meningkat, maka kesimpulannya tidak semua peserta rajin berlatih." },
@@ -93,11 +94,11 @@ export const TryoutResultPage: React.FC<{ setView: (v: View) => void; tryoutResu
   const openPdfReport = () => {
     const rows = resultData.map((sub) => `
       <tr>
-        <td>${sub.name}</td>
-        <td>${sub.score}/100</td>
-        <td>${sub.correct}</td>
-        <td>${sub.wrong}</td>
-        <td>${sub.skip}</td>
+        <td>${escapeHtml(sub.name)}</td>
+        <td>${escapeHtml(sub.score)}/100</td>
+        <td>${escapeHtml(sub.correct)}</td>
+        <td>${escapeHtml(sub.wrong)}</td>
+        <td>${escapeHtml(sub.skip)}</td>
       </tr>
     `).join('');
     const report = window.open('', '_blank');
@@ -126,24 +127,24 @@ export const TryoutResultPage: React.FC<{ setView: (v: View) => void; tryoutResu
           <div class="brand">
             <div>
               <div class="logo">Bimbel The Prams</div>
-              <div>Laporan Hasil ${selectedTryout.title}</div>
+              <div>Laporan Hasil ${escapeHtml(selectedTryout.title)}</div>
             </div>
             <div class="badge">AI Assisted Analysis</div>
           </div>
-          <h1>Hasil Tryout ${user?.name || 'Peserta'}</h1>
-          <p>Target: <strong>${targetLabel}</strong> | Status: <strong>${isGuestTryout ? 'Tryout Gratis' : 'Tryout Premium'}</strong></p>
+          <h1>Hasil Tryout ${escapeHtml(user?.name || 'Peserta')}</h1>
+          <p>Target: <strong>${escapeHtml(targetLabel)}</strong> | Status: <strong>${isGuestTryout ? 'Tryout Gratis' : 'Tryout Premium'}</strong></p>
           <div class="grid">
-            <div class="card"><div class="label">Skor Total</div><div class="value">${totalScore}/1000</div></div>
-            <div class="card"><div class="label">Akurasi</div><div class="value">${accuracy}%</div></div>
-            <div class="card"><div class="label">Peluang</div><div class="value">${chanceLevel}</div></div>
+            <div class="card"><div class="label">Skor Total</div><div class="value">${escapeHtml(totalScore)}/1000</div></div>
+            <div class="card"><div class="label">Akurasi</div><div class="value">${escapeHtml(accuracy)}%</div></div>
+            <div class="card"><div class="label">Peluang</div><div class="value">${escapeHtml(chanceLevel)}</div></div>
           </div>
           <h2>Detail Subtes</h2>
           <table>
             <thead><tr><th>Subtes</th><th>Skor</th><th>Benar</th><th>Salah</th><th>Kosong</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
-          <div class="note"><strong>Analisa AI Agent:</strong> ${aiInsight}</div>
-          <div class="note"><strong>Rekomendasi:</strong> Fokus pada ${weakestSubjects.map((item) => item.name).join(', ')}. Konsultasi gratis disarankan untuk menyusun rencana belajar yang sesuai target.</div>
+          <div class="note"><strong>Analisa AI Agent:</strong> ${escapeHtml(aiInsight)}</div>
+          <div class="note"><strong>Rekomendasi:</strong> Fokus pada ${escapeHtml(weakestSubjects.map((item) => item.name).join(', '))}. Konsultasi gratis disarankan untuk menyusun rencana belajar yang sesuai target.</div>
           <button onclick="window.print()">Cetak / Simpan PDF</button>
         </body>
       </html>

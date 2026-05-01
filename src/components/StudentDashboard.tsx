@@ -32,6 +32,29 @@ const data = [
 ];
 
 export const StudentDashboard: React.FC<{ setView: (v: View) => void, user: UserType | null, logout: () => void, onUpgrade: () => void }> = ({ setView, user, logout, onUpgrade }) => {
+  const directoryUser = React.useMemo(() => {
+    try {
+      const rows = JSON.parse(localStorage.getItem('theprams_demo_users') || '[]');
+      return Array.isArray(rows) ? rows.find((item: any) => item.email === user?.email) : null;
+    } catch {
+      return null;
+    }
+  }, [user?.email]);
+  const accountType = (directoryUser?.accountType || user?.accountType || (user?.isPremium ? 'Paid' : 'Free')) as 'Free' | 'Paid' | 'Scholarship' | 'Staff';
+  const packageName = directoryUser?.packageName || user?.packageName || (accountType === 'Free' ? 'Gratis' : accountType === 'Scholarship' ? 'Beasiswa' : 'Premium');
+  const paymentStatus = directoryUser?.paymentStatus || user?.paymentStatus || (accountType === 'Free' ? 'Free Active' : user?.isPremium ? 'Payment Approved' : 'Limited');
+  const approvedStatus = /approved|success/i.test(String(paymentStatus));
+  const hasPremiumAccess = Boolean(user?.isPremium) || (accountType === 'Paid' && approvedStatus) || (accountType === 'Scholarship' && approvedStatus);
+  const isScholarshipReview = accountType === 'Scholarship' && !hasPremiumAccess;
+  const isPaidPending = accountType === 'Paid' && !hasPremiumAccess;
+  const accountLabel = accountType === 'Scholarship' ? (hasPremiumAccess ? 'BEASISWA APPROVED' : 'BEASISWA REVIEW') : accountType === 'Paid' ? (hasPremiumAccess ? 'MEMBER BERBAYAR' : 'PAYMENT REVIEW') : 'FREE USER';
+  const accountDescription = isScholarshipReview
+    ? 'Pengajuan beasiswa kamu sedang direview admin. Akses premium aktif setelah disetujui.'
+    : isPaidPending
+      ? 'Pendaftaran berbayar kamu sedang menunggu verifikasi admin. Akses premium aktif setelah pembayaran disetujui.'
+    : hasPremiumAccess
+      ? 'Ayo lanjutkan belajarmu. Jadwal, kelas, dan tryout premium sudah tersedia.'
+      : 'Akun gratis aktif. Upgrade paket untuk membuka kelas live, jadwal, dan tryout premium.';
   // Calculate real progress for UI consistency
   const totalLessons = CURRICULUM.reduce((acc, mod) => acc + mod.lessons.length, 0);
   const completedLessons = CURRICULUM.reduce((acc, mod) => 
@@ -86,13 +109,13 @@ export const StudentDashboard: React.FC<{ setView: (v: View) => void, user: User
            ].map((item, i) => (
              <button
                 key={i}
-                disabled={!user?.isPremium && ['Tryout', 'Hasil & Ranking', 'Jadwal'].includes(item.name)}
+                disabled={!hasPremiumAccess && ['Tryout', 'Hasil & Ranking', 'Jadwal'].includes(item.name)}
                 onClick={() => item.view && setView(item.view as View)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-r-lg transition-all border-l-4 ${!user?.isPremium && ['Tryout', 'Hasil & Ranking', 'Jadwal'].includes(item.name) ? 'opacity-40 grayscale' : ''} ${item.active ? 'bg-brand-blue/20 text-brand-blue border-brand-blue font-bold' : 'text-slate-400 hover:text-white border-transparent'}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-r-lg transition-all border-l-4 ${!hasPremiumAccess && ['Tryout', 'Hasil & Ranking', 'Jadwal'].includes(item.name) ? 'opacity-40 grayscale' : ''} ${item.active ? 'bg-brand-blue/20 text-brand-blue border-brand-blue font-bold' : 'text-slate-400 hover:text-white border-transparent'}`}
              >
                 <item.icon size={20} />
                 <span className="font-medium">{item.name}</span>
-                {!user?.isPremium && ['Tryout', 'Hasil & Ranking', 'Jadwal'].includes(item.name) && <Lock size={12} className="ml-auto" />}
+                {!hasPremiumAccess && ['Tryout', 'Hasil & Ranking', 'Jadwal'].includes(item.name) && <Lock size={12} className="ml-auto" />}
              </button>
            ))}
            
@@ -107,16 +130,30 @@ export const StudentDashboard: React.FC<{ setView: (v: View) => void, user: User
 
         <div className="p-6 mt-auto">
            <div className="bg-slate-800/50 rounded-2xl p-4 border border-white/5">
-              {user?.isPremium ? (
+              {hasPremiumAccess ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 size={16} className="text-emerald-400" />
-                    <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Premium Member</p>
+                    <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">{accountLabel}</p>
                   </div>
                   <p className="text-xs text-white">Berlaku s/d: <span className="font-bold">31 Des 2025</span></p>
                   <div className="h-1 bg-white/10 rounded-full overflow-hidden">
                     <div className="h-full bg-emerald-500 w-full" />
                   </div>
+                </div>
+              ) : isScholarshipReview || isPaidPending ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Clock size={16} className="text-amber-400" />
+                    <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest">{isPaidPending ? 'Payment Review' : 'Scholarship Review'}</p>
+                  </div>
+                  <p className="text-xs text-white">Status: <span className="font-bold text-amber-300">{paymentStatus}</span></p>
+                  <button 
+                    onClick={() => setView('profile')}
+                    className="w-full bg-white/10 hover:bg-white/15 py-2.5 rounded-xl text-sm font-bold transition-all"
+                  >
+                    Cek Data Pendaftaran
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -142,12 +179,12 @@ export const StudentDashboard: React.FC<{ setView: (v: View) => void, user: User
          <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
             <div>
                <h1 className="text-2xl font-bold text-brand-navy">Selamat pagi, {user?.name.split(' ')[0]}! 👋</h1>
-               <p className="text-slate-500">{user?.isPremium ? 'Ayo lanjutkan belajarmu. Target SNBT 2025 tinggal 120 hari lagi.' : 'Tingkatkan akunmu untuk akses simulasi tryout lengkap.'}</p>
+               <p className="text-slate-500">{accountDescription}</p>
             </div>
             <div className="flex items-center gap-3">
-               <div className={`card-premium py-2 px-4 flex items-center gap-2 ${user?.isPremium ? 'border-emerald-100 bg-emerald-50/30 text-emerald-600' : 'border-amber-100 bg-amber-50/30 text-amber-600'}`}>
-                  <span className="text-[10px] font-bold uppercase tracking-wider">{user?.isPremium ? 'MEMBER PREMIUM' : 'FREE USER'}</span>
-                  <p className="text-sm font-bold text-brand-navy">SNBT 2025</p>
+               <div className={`card-premium py-2 px-4 flex items-center gap-2 ${hasPremiumAccess ? 'border-emerald-100 bg-emerald-50/30 text-emerald-600' : isScholarshipReview ? 'border-indigo-100 bg-indigo-50/30 text-indigo-600' : 'border-amber-100 bg-amber-50/30 text-amber-600'}`}>
+                  <span className="text-[10px] font-bold uppercase tracking-wider">{accountLabel}</span>
+                  <p className="text-sm font-bold text-brand-navy">{packageName}</p>
                </div>
                <button className="p-2 card-premium text-slate-600 relative">
                   <AlertCircle size={20} />
@@ -159,10 +196,10 @@ export const StudentDashboard: React.FC<{ setView: (v: View) => void, user: User
          {/* Stats */}
          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {[
-              { label: 'Progress Belajar', value: user?.isPremium ? `${progressPercent}%` : '8%', icon: BookOpen, color: 'text-brand-blue' },
-              { label: 'Skor Terakhir', value: user?.isPremium ? '720' : '-', icon: Trophy, color: 'text-amber-500' },
-              { label: 'Ranking Cohort', value: user?.isPremium ? '#12' : '-', icon: TrendingUp, color: 'text-emerald-500' },
-              { label: 'Tryout Selesai', value: user?.isPremium ? '06' : '01', icon: CheckCircle2, color: 'text-indigo-500' }
+              { label: 'Progress Belajar', value: hasPremiumAccess ? `${progressPercent}%` : isScholarshipReview ? 'Review' : '8%', icon: BookOpen, color: 'text-brand-blue' },
+              { label: 'Skor Terakhir', value: hasPremiumAccess ? '720' : '-', icon: Trophy, color: 'text-amber-500' },
+              { label: 'Ranking Cohort', value: hasPremiumAccess ? '#12' : '-', icon: TrendingUp, color: 'text-emerald-500' },
+              { label: 'Tryout Selesai', value: hasPremiumAccess ? '06' : '01', icon: CheckCircle2, color: 'text-indigo-500' }
             ].map((stat, i) => (
               <div key={i} className="card-premium p-4 group">
                  <div className={`p-2 rounded-lg bg-slate-50 inline-block mb-3 transition-colors ${stat.color} group-hover:bg-brand-blue group-hover:text-white`}>
@@ -171,7 +208,7 @@ export const StudentDashboard: React.FC<{ setView: (v: View) => void, user: User
                  <p className="text-xs text-slate-500">{stat.label}</p>
                  <div className="flex items-center gap-2">
                     <p className="text-xl font-bold text-brand-navy">{stat.value}</p>
-                    {!user?.isPremium && i > 0 && <Lock size={12} className="text-slate-300" />}
+                    {!hasPremiumAccess && i > 0 && <Lock size={12} className="text-slate-300" />}
                  </div>
               </div>
             ))}
@@ -263,7 +300,7 @@ export const StudentDashboard: React.FC<{ setView: (v: View) => void, user: User
             <div className="space-y-8">
                <div className="card-premium p-6">
                   <h3 className="font-bold text-brand-navy mb-4">Jadwal Kelas Hari Ini</h3>
-                  {user?.isPremium ? (
+                  {hasPremiumAccess ? (
                     <>
                       <div className="space-y-4">
                          {LIVE_SESSIONS.map((item, i) => (

@@ -56,6 +56,9 @@ export interface User {
   premiumUntil?: string;
   role: 'Student' | 'Tutor' | 'Admin' | 'Support' | 'Content Manager';
   permissions?: string[];
+  accountType?: 'Free' | 'Paid' | 'Scholarship' | 'Staff';
+  packageName?: string;
+  paymentStatus?: string;
   // New informational fields
   address?: string;
   targetPTN?: string;
@@ -74,6 +77,8 @@ export interface Lead {
   source: string;
   status: 'New' | 'Contacted' | 'Qualified' | 'Converted' | 'Lost';
   createdAt: string;
+  lastContactedAt?: string;
+  note?: string;
 }
 
 export interface Question {
@@ -175,6 +180,10 @@ export interface UserAccount {
   status: 'Active' | 'Pending' | 'Inactive';
   avatar: string;
   joinedAt: string;
+  accountType?: 'Free' | 'Paid' | 'Scholarship' | 'Staff';
+  packageName?: string;
+  paymentStatus?: string;
+  source?: string;
 }
 
 export interface Feedback {
@@ -196,9 +205,23 @@ export interface BlogPost {
   author: string;
   authorRole: string;
   authorAvatar: string;
-  category: 'Tips & Trik' | 'Info PTN' | 'Materi' | 'Inspirasi';
+  category: 'Tips & Trik' | 'Info PTN' | 'Materi' | 'Inspirasi' | 'Literasi';
   image: string;
   date: string;
   readTime: string;
   tags: string[];
+}
+
+export interface WebsiteQuestion {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  question: string;
+  programOfInterest: string;
+  source: string;
+  status: 'Baru' | 'Dibalas' | 'Follow Up';
+  adminAnswer?: string;
+  createdAt: string;
+  answeredAt?: string;
 }

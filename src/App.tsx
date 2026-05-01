@@ -4,7 +4,7 @@
  */
 
 import { FormEvent, useState, useEffect } from 'react';
-import { TryoutSubtestResult, View, User } from './types';
+import { BlogPost, TryoutSubtestResult, View, User, WebsiteQuestion } from './types';
 import { Navbar } from './components/Navbar';
 import { LandingPage } from './components/LandingPage';
 import { StudentDashboard } from './components/StudentDashboard';
@@ -26,11 +26,40 @@ import { BlogListingPage } from './components/BlogListingPage';
 import { BlogPostPage } from './components/BlogPostPage';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, ChevronLeft, ExternalLink, Mail, MessageCircle, Video, X } from 'lucide-react';
-import { LIVE_SESSIONS, PROGRAMS } from './constants';
+import { BLOG_POSTS, LIVE_SESSIONS, PROGRAMS } from './constants';
+import { Program } from './types';
+
+const PROGRAM_STORAGE_KEY = 'theprams_demo_programs';
+const BLOG_STORAGE_KEY = 'theprams_demo_blog_posts';
+const WEBSITE_QUESTION_STORAGE_KEY = 'theprams_demo_website_questions';
+
+const readStoredPrograms = (): Program[] => {
+  try {
+    const raw = localStorage.getItem(PROGRAM_STORAGE_KEY);
+    if (!raw) return PROGRAMS;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed : PROGRAMS;
+  } catch {
+    return PROGRAMS;
+  }
+};
+
+const readStoredBlogPosts = (): BlogPost[] => {
+  try {
+    const raw = localStorage.getItem(BLOG_STORAGE_KEY);
+    if (!raw) return BLOG_POSTS;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed : BLOG_POSTS;
+  } catch {
+    return BLOG_POSTS;
+  }
+};
 
 export default function App() {
   const [view, setView] = useState<View>('landing');
   const [user, setUser] = useState<User | null>(null);
+  const [editablePrograms, setEditablePrograms] = useState<Program[]>(readStoredPrograms);
+  const [editableBlogPosts, setEditableBlogPosts] = useState<BlogPost[]>(readStoredBlogPosts);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
   const [selectedMentorId, setSelectedMentorId] = useState<string | null>(null);
@@ -40,14 +69,31 @@ export default function App() {
   const [upgradeReturnView, setUpgradeReturnView] = useState<View | null>(null);
   const [isConsultOpen, setIsConsultOpen] = useState(false);
   const [consultName, setConsultName] = useState('');
+  const [consultPhone, setConsultPhone] = useState('');
   const [consultMessage, setConsultMessage] = useState('');
   const [consultContext, setConsultContext] = useState('');
   const [consultPos, setConsultPos] = useState({ x: 24, y: 110 });
   const [didDragConsult, setDidDragConsult] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
 
   const handleLogout = () => {
+    setIsLogoutConfirmOpen(true);
+  };
+
+  const confirmLogout = () => {
     setUser(null);
     setView('landing');
+    setIsLogoutConfirmOpen(false);
+  };
+
+  const updateEditablePrograms = (nextPrograms: Program[]) => {
+    setEditablePrograms(nextPrograms);
+    localStorage.setItem(PROGRAM_STORAGE_KEY, JSON.stringify(nextPrograms));
+  };
+
+  const updateEditableBlogPosts = (nextPosts: BlogPost[]) => {
+    setEditableBlogPosts(nextPosts);
+    localStorage.setItem(BLOG_STORAGE_KEY, JSON.stringify(nextPosts));
   };
 
   const resolveProgramIdForUser = () => {
@@ -59,7 +105,7 @@ export default function App() {
   };
 
   const resolvePremiumPackageId = (programId: string) => {
-    const program = PROGRAMS.find((item) => item.id === programId);
+    const program = editablePrograms.find((item) => item.id === programId);
     return program?.packages?.find((pkg) => pkg.isPopular)?.id || program?.packages?.find((pkg) => pkg.name.toLowerCase().includes('premium'))?.id || program?.packages?.[0]?.id || null;
   };
 
@@ -77,10 +123,23 @@ export default function App() {
     ]));
   };
 
+  const saveWebsiteQuestion = (question: Omit<WebsiteQuestion, 'id' | 'status' | 'createdAt'>) => {
+    const previous = JSON.parse(localStorage.getItem(WEBSITE_QUESTION_STORAGE_KEY) || '[]');
+    localStorage.setItem(WEBSITE_QUESTION_STORAGE_KEY, JSON.stringify([
+      {
+        id: `web-question-${Date.now()}`,
+        status: 'Baru',
+        createdAt: new Date().toLocaleString('id-ID'),
+        ...question
+      },
+      ...previous
+    ]));
+  };
+
   const openConsultation = (context = 'Konsultasi Website') => {
     if (user?.id === 'u_guest' && user.name && user.phone) {
       const programId = selectedProgramId || resolveProgramIdForUser();
-      const program = PROGRAMS.find((item) => item.id === programId);
+      const program = editablePrograms.find((item) => item.id === programId);
       saveLead({
         name: user.name,
         phone: user.phone,
@@ -88,11 +147,20 @@ export default function App() {
         programOfInterest: program?.title || user.program || 'Konsultasi Tryout Gratis',
         source: context
       });
+      saveWebsiteQuestion({
+        name: user.name,
+        phone: user.phone,
+        email: user.email || '-',
+        programOfInterest: program?.title || user.program || 'Konsultasi Tryout Gratis',
+        question: `Saya ingin konsultasi setelah mencoba tryout gratis. Target saya: ${user.targetPTN || '-'}.`,
+        source: `${context} - Direct WhatsApp`
+      });
       window.open(`https://wa.me/6281234567890?text=${encodeURIComponent(`Halo Admin The Prams, saya ${user.name}. Nomor WA saya ${user.phone}. Saya ingin konsultasi setelah mencoba tryout gratis. Target saya: ${user.targetPTN || '-'}.`)}`, '_blank');
       return;
     }
 
     setConsultName(user?.id === 'u_guest' ? user.name : user?.name || '');
+    setConsultPhone(user?.phone || '');
     setConsultMessage('');
     setConsultContext(context);
     setIsConsultOpen(true);
@@ -101,13 +169,22 @@ export default function App() {
   const submitConsultation = (event: FormEvent) => {
     event.preventDefault();
     const programId = selectedProgramId || resolveProgramIdForUser();
-    const program = PROGRAMS.find((item) => item.id === programId);
+    const program = editablePrograms.find((item) => item.id === programId);
+    const phone = consultPhone.trim() || user?.phone || 'Nomor dari WhatsApp saat user mengirim';
     saveLead({
       name: consultName,
-      phone: user?.phone || 'Nomor dari WhatsApp saat user mengirim',
+      phone,
       email: user?.email,
       programOfInterest: program?.title || 'Konsultasi Program',
       source: `${consultContext} - Pesan: ${consultMessage}`
+    });
+    saveWebsiteQuestion({
+      name: consultName || user?.name || 'Calon customer',
+      email: user?.email || '-',
+      phone,
+      programOfInterest: program?.title || 'Konsultasi Program',
+      question: consultMessage,
+      source: `${consultContext} - Direct WhatsApp`
     });
     setIsConsultOpen(false);
     window.open(`https://wa.me/6281234567890?text=${encodeURIComponent(`Halo Admin The Prams, saya ${consultName || user?.name || 'calon customer'}. ${consultMessage}`)}`, '_blank');
@@ -161,40 +238,44 @@ export default function App() {
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.3 }}
         >
-          {view === 'landing' && <LandingPage setView={setView} />}
-          {view === 'login' && <LoginPage setView={setView} setUser={setUser} setSelectedTryoutId={setSelectedTryoutId} />}
-          {view === 'register' && <LoginPage setView={setView} setUser={setUser} setSelectedTryoutId={setSelectedTryoutId} isRegisteringDefault={true} />}
-          {view === 'guestRegistration' && <LoginPage setView={setView} setUser={setUser} setSelectedTryoutId={setSelectedTryoutId} isGuestModeDefault={true} />}
-          {view === 'programs' && <ProgramListingPage setView={setView} setSelectedProgramId={(id) => { setSelectedProgramId(id); setSelectedPackageId(null); }} />}
+          {view === 'landing' && <LandingPage setView={setView} programs={editablePrograms} />}
+          {view === 'login' && <LoginPage setView={setView} setUser={setUser} setSelectedTryoutId={setSelectedTryoutId} setSelectedProgramId={setSelectedProgramId} setSelectedPackageId={setSelectedPackageId} programs={editablePrograms} />}
+          {view === 'register' && <LoginPage setView={setView} setUser={setUser} setSelectedTryoutId={setSelectedTryoutId} setSelectedProgramId={setSelectedProgramId} setSelectedPackageId={setSelectedPackageId} isRegisteringDefault={true} initialProgramId={selectedProgramId} initialPackageId={selectedPackageId} initialUser={user} programs={editablePrograms} />}
+          {view === 'guestRegistration' && <LoginPage setView={setView} setUser={setUser} setSelectedTryoutId={setSelectedTryoutId} setSelectedProgramId={setSelectedProgramId} setSelectedPackageId={setSelectedPackageId} isGuestModeDefault={true} programs={editablePrograms} />}
+          {view === 'programs' && <ProgramListingPage setView={setView} setSelectedProgramId={(id) => { setSelectedProgramId(id); setSelectedPackageId(null); }} programs={editablePrograms} />}
           {view === 'programDetail' && (
             <ProgramDetailPage 
               programId={selectedProgramId} 
               setView={setView} 
+              programs={editablePrograms}
               selectedPackageId={selectedPackageId}
               setSelectedPackageId={setSelectedPackageId}
               returnToResult={upgradeReturnView === 'result' && user?.id === 'u_guest'}
               setSelectedMentorId={setSelectedMentorId} 
             />
           )}
-          {view === 'payment' && <PaymentPage setView={setView} selectedProgramId={selectedProgramId} selectedPackageId={selectedPackageId} user={user} />}
+          {view === 'payment' && <PaymentPage setView={setView} selectedProgramId={selectedProgramId} selectedPackageId={selectedPackageId} user={user} programs={editablePrograms} />}
           {view === 'finalRegistration' && (
             <FinalRegistrationPage
               setView={setView}
               user={user}
-              selectedProgram={PROGRAMS.find((program) => program.id === selectedProgramId) || PROGRAMS[0]}
-              selectedPackage={(PROGRAMS.find((program) => program.id === selectedProgramId) || PROGRAMS[0]).packages?.find((pkg) => pkg.id === selectedPackageId) || null}
+              selectedProgram={editablePrograms.find((program) => program.id === selectedProgramId) || editablePrograms[0] || PROGRAMS[0]}
+              selectedPackage={(editablePrograms.find((program) => program.id === selectedProgramId) || editablePrograms[0] || PROGRAMS[0]).packages?.find((pkg) => pkg.id === selectedPackageId) || null}
             />
           )}
           {view === 'blogListing' && (
             <BlogListingPage 
               setView={setView} 
               setSelectedBlogId={setSelectedBlogId} 
+              posts={editableBlogPosts}
             />
           )}
           {view === 'blogPost' && (
             <BlogPostPage 
               blogId={selectedBlogId} 
               setView={setView} 
+              setSelectedBlogId={setSelectedBlogId}
+              posts={editableBlogPosts}
             />
           )}
           {view === 'testimonials' && <TestimonialsPage setView={setView} />}
@@ -212,7 +293,7 @@ export default function App() {
           {view === 'tryoutListing' && <TryoutListingPage setView={setView} user={user} />}
           {view === 'profile' && <ProfilePage setView={setView} user={user} />}
           {view === 'contact' && <ContactPage />}
-          {view === 'admin' && <AdminDashboard logout={handleLogout} setView={setView} />}
+          {view === 'admin' && <AdminDashboard logout={handleLogout} setView={setView} programs={editablePrograms} onProgramsChange={updateEditablePrograms} blogPosts={editableBlogPosts} onBlogPostsChange={updateEditableBlogPosts} />}
           
           {view === 'schedule' && (
             <div className="min-h-screen bg-slate-50 px-4 py-10 md:px-8">
@@ -367,6 +448,10 @@ export default function App() {
                 <input required value={consultName} onChange={(e) => setConsultName(e.target.value)} className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 outline-none font-medium" placeholder="Nama lengkap" />
               </div>
               <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Nomor WhatsApp</label>
+                <input required value={consultPhone} onChange={(e) => setConsultPhone(e.target.value)} className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 outline-none font-medium" placeholder="0812-xxxx-xxxx" />
+              </div>
+              <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Pesan yang ingin disampaikan</label>
                 <textarea required value={consultMessage} onChange={(e) => setConsultMessage(e.target.value)} className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 outline-none font-medium min-h-[120px]" placeholder="Contoh: Saya ingin konsultasi program SNBT Kedokteran setelah tryout gratis." />
               </div>
@@ -374,6 +459,28 @@ export default function App() {
               <button type="submit" className="w-full btn-primary py-4">Kirim Konsultasi</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {isLogoutConfirmOpen && (
+        <div className="fixed inset-0 z-[1001] bg-brand-navy/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 text-brand-orange flex items-center justify-center mb-6">
+              <X size={26} />
+            </div>
+            <h3 className="text-2xl font-black text-brand-navy mb-3">Yakin ingin keluar dari kelas?</h3>
+            <p className="text-sm text-slate-500 leading-relaxed mb-8">
+              Progress belajarmu sudah berjalan. Tetap di kelas untuk lanjut mengejar target hari ini, atau keluar jika memang sudah selesai.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setIsLogoutConfirmOpen(false)} className="px-5 py-3 rounded-xl bg-brand-blue text-white text-sm font-black">
+                Tidak, lanjut belajar
+              </button>
+              <button onClick={confirmLogout} className="px-5 py-3 rounded-xl bg-slate-100 text-slate-600 text-sm font-black">
+                Iya, keluar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

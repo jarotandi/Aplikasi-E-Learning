@@ -9,35 +9,38 @@ import {
   Smartphone,
   Building,
   FileText,
-  MailCheck,
-  UserCheck,
   Upload,
   Clock
 } from 'lucide-react';
 import { View, Program, ProgramPackage, User } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { PROGRAMS } from '../constants';
+import { escapeHtml, isValidEmail, isValidIndonesianPhone, readStoredArray } from '../utils/security';
 
-export const PaymentPage: React.FC<{ setView: (v: View) => void; selectedProgramId?: string | null; selectedPackageId?: string | null; user?: User | null }> = ({ setView, selectedProgramId, selectedPackageId, user }) => {
+export const PaymentPage: React.FC<{ setView: (v: View) => void; selectedProgramId?: string | null; selectedPackageId?: string | null; user?: User | null; programs?: Program[] }> = ({ setView, selectedProgramId, selectedPackageId, user, programs = PROGRAMS }) => {
   const [step, setStep] = useState<'checkout' | 'processing' | 'success'>('checkout');
-  const selectedProgram: Program = PROGRAMS.find((program) => program.id === selectedProgramId) || PROGRAMS[0];
+  const selectedProgram: Program = programs.find((program) => program.id === selectedProgramId) || programs[0] || PROGRAMS[0];
   const selectedPackage: ProgramPackage | null = selectedProgram.packages?.find((pkg) => pkg.id === selectedPackageId) || selectedProgram.packages?.find((pkg) => pkg.isPopular) || selectedProgram.packages?.[0] || null;
   const [paymentMethod, setPaymentMethod] = useState<'va' | 'ewallet' | 'cc'>('va');
-  const [isManualOpen, setIsManualOpen] = useState(false);
   const [payerName, setPayerName] = useState(user?.name || 'Budi Santoso');
   const [payerEmail, setPayerEmail] = useState(user?.email || 'budi@example.com');
   const [payerPhone, setPayerPhone] = useState(user?.phone || '0812-3456-7890');
+  const [paymentError, setPaymentError] = useState('');
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofError, setProofError] = useState('');
+  const [proofSubmitted, setProofSubmitted] = useState(false);
   const isFreePackage = (selectedPackage?.price || selectedProgram.price) === 'Rp 0';
-  const invoiceNumber = 'INV/20260427/TP/00124';
-  const invoiceTime = '27 Apr 2026, 05:58';
+  const isScholarshipPackage = selectedPackage?.name.toLowerCase().includes('beasiswa') || selectedPackage?.id.toLowerCase().includes('scholar');
+  const requiresPaymentProof = !isFreePackage && !isScholarshipPackage;
+  const adminFee = isFreePackage ? 'Rp 0' : 'Rp 5.000';
+  const paymentActionLabel = isScholarshipPackage ? 'Ajukan Beasiswa' : isFreePackage ? 'Aktifkan Paket Gratis' : 'Proses Pembayaran';
+  const [invoiceNumber] = useState(() => `INV/${new Date().toISOString().slice(0, 10).replace(/-/g, '')}/TP/${Date.now().toString().slice(-5)}`);
+  const [invoiceTime] = useState(() => new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
 
-  const openInvoice = () => {
-    const invoice = window.open('', '_blank');
-    if (!invoice) return;
-    invoice.document.write(`
+  const buildInvoiceHtml = (methodLabel: string) => `
       <html>
         <head>
-          <title>${invoiceNumber}</title>
+          <title>${escapeHtml(invoiceNumber)}</title>
           <style>
             body { font-family: Arial, sans-serif; color:#0f172a; margin:40px; }
             .head { display:flex; justify-content:space-between; border-bottom:3px solid #2563eb; padding-bottom:18px; margin-bottom:28px; }
@@ -54,50 +57,126 @@ export const PaymentPage: React.FC<{ setView: (v: View) => void; selectedProgram
         <body>
           <div class="head">
             <div><div class="brand">Bimbel The Prams</div><div class="muted">Invoice Pembayaran Program</div></div>
-            <div><strong>${invoiceNumber}</strong><div class="muted">${invoiceTime}</div></div>
+            <div><strong>${escapeHtml(invoiceNumber)}</strong><div class="muted">${escapeHtml(invoiceTime)}</div></div>
           </div>
           <div class="box">
             <div class="muted">Program</div>
-            <h2>${selectedProgram.title}</h2>
-            <p>Paket: <strong>${selectedPackage?.name || '-'}</strong></p>
-            <p>Nama: <strong>${payerName || '-'}</strong></p>
-            <p>Email: <strong>${payerEmail || '-'}</strong></p>
-            <p>WhatsApp: <strong>${payerPhone || '-'}</strong></p>
+            <h2>${escapeHtml(selectedProgram.title)}</h2>
+            <p>Paket: <strong>${escapeHtml(selectedPackage?.name || '-')}</strong></p>
+            <p>Nama: <strong>${escapeHtml(payerName || '-')}</strong></p>
+            <p>Email: <strong>${escapeHtml(payerEmail || '-')}</strong></p>
+            <p>WhatsApp: <strong>${escapeHtml(payerPhone || '-')}</strong></p>
           </div>
           <table>
             <thead><tr><th>Item</th><th>Durasi</th><th>Harga</th></tr></thead>
-            <tbody><tr><td>${selectedProgram.title} - ${selectedPackage?.name || 'Paket'}</td><td>${selectedPackage?.duration || '-'}</td><td>${selectedPackage?.price || selectedProgram.price}</td></tr></tbody>
+            <tbody><tr><td>${escapeHtml(selectedProgram.title)} - ${escapeHtml(selectedPackage?.name || 'Paket')}</td><td>${escapeHtml(selectedPackage?.duration || '-')}</td><td>${escapeHtml(selectedPackage?.price || selectedProgram.price)}</td></tr></tbody>
           </table>
-          <p class="total">Total: ${selectedPackage?.price || selectedProgram.price}</p>
-          <div class="box">Metode Pembayaran: <strong>${paymentMethod === 'va' ? 'Virtual Account' : paymentMethod === 'ewallet' ? 'E-Wallet' : 'Debit Card'}</strong></div>
-          <div class="box">Status: ${isFreePackage ? 'Aktif otomatis - Paket Gratis' : 'Menunggu/terverifikasi sesuai metode pembayaran. Jika belum menerima notifikasi, gunakan Verifikasi Manual.'}</div>
+          <p class="total">Total: ${escapeHtml(selectedPackage?.price || selectedProgram.price)}</p>
+          <div class="box">Metode Pembayaran: <strong>${escapeHtml(methodLabel)}</strong></div>
+          <div class="box">Status: ${isScholarshipPackage ? 'Pengajuan beasiswa tercatat - menunggu review admin.' : isFreePackage ? 'Aktif otomatis - Paket Gratis' : 'Menunggu/terverifikasi sesuai metode pembayaran. Jika belum menerima notifikasi, gunakan Verifikasi Manual.'}</div>
           <button onclick="window.print()">Cetak / Simpan PDF</button>
         </body>
       </html>
-    `);
+    `;
+
+  const openInvoice = () => {
+    const invoice = window.open('', '_blank');
+    if (!invoice) return;
+    const methodLabel = isScholarshipPackage ? 'Pengajuan Beasiswa' : isFreePackage ? 'Paket Gratis' : paymentMethod === 'va' ? 'Virtual Account' : paymentMethod === 'ewallet' ? 'E-Wallet' : 'Debit Card';
+    invoice.document.write(buildInvoiceHtml(methodLabel));
     invoice.document.close();
   };
 
   const handlePayment = () => {
-    const previous = JSON.parse(localStorage.getItem('theprams_demo_transactions') || '[]');
-    const methodLabel = paymentMethod === 'va' ? 'Virtual Account' : paymentMethod === 'ewallet' ? 'E-Wallet' : 'Debit Card';
+    if (!payerName.trim()) {
+      setPaymentError('Nama lengkap wajib diisi.');
+      return;
+    }
+    if (!isValidEmail(payerEmail)) {
+      setPaymentError('Format email pembayaran tidak valid.');
+      return;
+    }
+    if (!isValidIndonesianPhone(payerPhone)) {
+      setPaymentError('Nomor WhatsApp harus diawali 08, 62, atau +62 dan berisi minimal 9 digit.');
+      return;
+    }
+    setPaymentError('');
+    const previous = readStoredArray('theprams_demo_transactions');
+    const methodLabel = isScholarshipPackage ? 'Pengajuan Beasiswa' : isFreePackage ? 'Paket Gratis' : paymentMethod === 'va' ? 'Virtual Account' : paymentMethod === 'ewallet' ? 'E-Wallet' : 'Debit Card';
     localStorage.setItem('theprams_demo_transactions', JSON.stringify([
       {
         id: invoiceNumber,
+        type: isScholarshipPackage ? 'scholarship' : isFreePackage ? 'free' : 'paid',
         student: payerName,
         phone: payerPhone,
         email: payerEmail,
+        registrationData: {
+          name: user?.name || payerName,
+          email: user?.email || payerEmail,
+          phone: user?.phone || payerPhone,
+          school: user?.school || '-',
+          address: user?.address || '-',
+          targetPTN: user?.targetPTN || '-',
+          joinReason: user?.joinReason || '-'
+        },
         program: selectedProgram.title,
         packageName: selectedPackage?.name || '-',
         amount: selectedPackage?.price || selectedProgram.price,
         method: methodLabel,
-        status: isFreePackage ? 'Free Active' : 'Pending',
-        date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+        status: isScholarshipPackage ? 'Scholarship Review' : isFreePackage ? 'Free Active' : 'Pending',
+        invoiceNumber,
+        invoiceTime,
+        invoiceHtml: buildInvoiceHtml(methodLabel),
+        date: new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+        createdAt: new Date().toISOString()
       },
       ...previous
     ]));
     setStep('processing');
     setTimeout(() => setStep('success'), 2500);
+  };
+
+  const readFileAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+
+  const submitProof = async () => {
+    if (!requiresPaymentProof) {
+      setProofSubmitted(true);
+      return;
+    }
+    if (!proofFile) {
+      setProofError('Upload bukti pembayaran terlebih dahulu.');
+      return;
+    }
+    setProofError('');
+    const fileData = await readFileAsDataUrl(proofFile);
+    const previous = readStoredArray('theprams_demo_payment_proofs');
+    localStorage.setItem('theprams_demo_payment_proofs', JSON.stringify([
+      {
+        id: `proof-${Date.now()}`,
+        invoiceId: invoiceNumber,
+        type: 'Payment Proof',
+        student: payerName,
+        phone: payerPhone,
+        email: payerEmail,
+        verifiedEmail: payerEmail,
+        verifiedPhone: payerPhone,
+        program: selectedProgram.title,
+        packageName: selectedPackage?.name || '-',
+        fileName: proofFile.name,
+        fileSize: proofFile.size,
+        fileType: proofFile.type || 'application/octet-stream',
+        fileData,
+        status: 'Waiting Verification',
+        createdAt: new Date().toISOString()
+      },
+      ...previous
+    ]));
+    setProofSubmitted(true);
   };
 
   return (
@@ -123,9 +202,10 @@ export const PaymentPage: React.FC<{ setView: (v: View) => void; selectedProgram
               <div className="card-premium p-8 bg-white">
                 <h2 className="text-2xl font-bold text-brand-navy mb-8 flex items-center gap-3">
                   <span className="w-8 h-8 rounded-full bg-brand-navy text-white flex items-center justify-center text-sm">1</span>
-                  Metode Pembayaran
+                  {requiresPaymentProof ? 'Metode Pembayaran' : 'Konfirmasi Pendaftaran'}
                 </h2>
                 
+                {requiresPaymentProof ? (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                    {[
                      { id: 'va', name: 'Virtual Account', icon: Building, color: 'text-indigo-500' },
@@ -142,6 +222,19 @@ export const PaymentPage: React.FC<{ setView: (v: View) => void; selectedProgram
                      </button>
                    ))}
                 </div>
+                ) : (
+                  <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-start gap-4">
+                    <ShieldCheck className="text-emerald-600 mt-1" size={22} />
+                    <div>
+                      <p className="font-black text-brand-navy">{isScholarshipPackage ? 'Pendaftaran Beasiswa Tanpa Upload Dokumen' : 'Kelas Gratis Aktif Tanpa Bukti Pembayaran'}</p>
+                      <p className="text-xs text-slate-600 leading-relaxed mt-1">
+                        {isScholarshipPackage
+                          ? 'Data pengajuan beasiswa akan langsung masuk ke database admin untuk direview.'
+                          : 'Paket gratis bernilai Rp 0, jadi tidak perlu upload bukti pembayaran.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="card-premium p-8 bg-white">
@@ -170,6 +263,11 @@ export const PaymentPage: React.FC<{ setView: (v: View) => void; selectedProgram
                           Data nama, email, dan WhatsApp dari pembayaran akan otomatis masuk ke form pendaftaran dan dikunci sesuai invoice. Data lain tetap dapat dilengkapi di tahap pendaftaran.
                        </p>
                     </div>
+                    {paymentError && (
+                      <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-xs font-bold text-red-600">
+                        {paymentError}
+                      </div>
+                    )}
                  </form>
               </div>
             </div>
@@ -198,7 +296,7 @@ export const PaymentPage: React.FC<{ setView: (v: View) => void; selectedProgram
                        </div>
                        <div className="flex justify-between text-white/60 text-sm">
                           <span>Biaya Admin</span>
-                          <span className="font-bold text-white">Rp 5.000</span>
+                          <span className="font-bold text-white">{adminFee}</span>
                        </div>
                        <div className="flex justify-between text-white/60 text-sm">
                           <span>Diskon Promo</span>
@@ -217,7 +315,7 @@ export const PaymentPage: React.FC<{ setView: (v: View) => void; selectedProgram
                       onClick={handlePayment}
                       className="w-full btn-orange py-4 rounded-2xl shadow-xl shadow-brand-orange/20 flex items-center justify-center gap-3"
                     >
-                       Proses Pembayaran
+                       {paymentActionLabel}
                        <ArrowRight size={20} />
                     </button>
 
@@ -256,34 +354,13 @@ export const PaymentPage: React.FC<{ setView: (v: View) => void; selectedProgram
             </div>
             <h2 className="text-3xl font-bold text-brand-navy mb-4">Pembayaran Berhasil!</h2>
             <p className="text-slate-500 mb-8 leading-relaxed">
-               {isFreePackage ? (
-                 <>Paket gratis <span className="font-bold text-brand-blue">{selectedProgram.title}</span> aktif otomatis. Kamu bisa langsung mengikuti akses gratis sesuai ketentuan paket.</>
-               ) : (
-                 <>Pembayaran untuk program <span className="font-bold text-brand-blue">{selectedProgram.title}</span> tercatat. Jika notifikasi belum diterima, gunakan verifikasi manual. Konfirmasi maksimal 2x24 jam.</>
-               )}
+               {isScholarshipPackage
+                 ? <>Pengajuan beasiswa untuk program <span className="font-bold text-brand-blue">{selectedProgram.title}</span> tercatat. Tidak perlu upload dokumen di tahap ini; admin akan mereview data pendaftaran.</>
+                 : isFreePackage
+                   ? <>Paket gratis untuk program <span className="font-bold text-brand-blue">{selectedProgram.title}</span> aktif tanpa upload bukti pembayaran.</>
+                   : <>Pembayaran untuk program <span className="font-bold text-brand-blue">{selectedProgram.title}</span> tercatat. Upload bukti pembayaran agar admin dapat melakukan verifikasi maksimal 2x24 jam.</>}
             </p>
 
-            <div className="bg-blue-50 rounded-2xl p-6 mb-8 text-left space-y-4 border border-blue-100">
-               <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-xl bg-white text-brand-blue">
-                     <MailCheck size={20} />
-                  </div>
-                  <div>
-                     <p className="text-sm font-bold text-brand-navy">Autentikasi Email</p>
-                     <p className="text-xs text-slate-500 leading-relaxed">Cek inbox email untuk membuka form pendaftaran resmi.</p>
-                  </div>
-               </div>
-               <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-xl bg-white text-emerald-600">
-                     <UserCheck size={20} />
-                  </div>
-                  <div>
-                     <p className="text-sm font-bold text-brand-navy">Aktivasi Akun</p>
-                     <p className="text-xs text-slate-500 leading-relaxed">{isFreePackage ? 'Paket gratis aktif tanpa menunggu konfirmasi pembayaran.' : 'Akun belajar aktif setelah pembayaran dan form pendaftaran terverifikasi.'}</p>
-                  </div>
-               </div>
-            </div>
-            
             <div className="bg-slate-50 rounded-2xl p-6 mb-8 text-left space-y-4">
                <div className="flex items-center gap-3 text-slate-400">
                   <FileText size={18} />
@@ -299,64 +376,91 @@ export const PaymentPage: React.FC<{ setView: (v: View) => void; selectedProgram
                </div>
                <div className="flex justify-between items-center">
                   <p className="text-xs font-bold text-slate-600">Metode</p>
-                  <p className="text-sm font-bold text-brand-navy">{paymentMethod === 'va' ? 'Virtual Account' : paymentMethod === 'ewallet' ? 'E-Wallet' : 'Debit Card'}</p>
+                  <p className="text-sm font-bold text-brand-navy">{isScholarshipPackage ? 'Pengajuan Beasiswa' : isFreePackage ? 'Paket Gratis' : paymentMethod === 'va' ? 'Virtual Account' : paymentMethod === 'ewallet' ? 'E-Wallet' : 'Debit Card'}</p>
                </div>
                <button onClick={openInvoice} className="w-full py-2 bg-white border border-slate-200 text-slate-500 rounded-xl text-xs font-bold hover:bg-slate-100 transition-colors">
                   Unduh PDF Invoice
                </button>
             </div>
 
-            {!isFreePackage && (
-              <button 
-                onClick={() => setIsManualOpen(true)}
-                className="w-full btn-primary py-4"
-              >
-                 Verifikasi Manual
-              </button>
-            )}
-
-            {isFreePackage && (
-              <button 
-                onClick={() => setView('finalRegistration')}
-                className="w-full btn-primary py-4"
-              >
-                 Isi Form Pendaftaran Gratis
-              </button>
-            )}
-
-            {isManualOpen && (
-              <div className="fixed inset-0 z-[1000] bg-brand-navy/60 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-white rounded-3xl p-8 max-w-2xl w-full text-left shadow-2xl">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-12 h-12 rounded-2xl bg-blue-50 text-brand-blue flex items-center justify-center">
-                      <Upload size={24} />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-black text-brand-navy">Verifikasi Manual</h3>
-                      <p className="text-xs text-slate-500">Form pendaftaran dan invoice masuk database admin, tanpa upload bukti otomatis.</p>
-                    </div>
+            {!requiresPaymentProof ? (
+              <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-6 text-left space-y-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-white text-emerald-600 flex items-center justify-center shrink-0">
+                    <CheckCircle2 size={24} />
                   </div>
-
-                  <div className="grid md:grid-cols-2 gap-4 mb-5">
-                    <input value={payerName} onChange={(e) => setPayerName(e.target.value)} className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 outline-none text-sm" placeholder="Nama lengkap" />
-                    <input value={payerPhone} onChange={(e) => setPayerPhone(e.target.value)} className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 outline-none text-sm" placeholder="Nomor WhatsApp" />
-                    <input value={payerEmail} onChange={(e) => setPayerEmail(e.target.value)} className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 outline-none text-sm" placeholder="Email aktif" />
-                    <input className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 outline-none text-sm" value={invoiceNumber} readOnly />
-                  </div>
-
-                  <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex gap-3 mb-6">
-                    <Clock size={20} className="text-amber-600 shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-900 leading-relaxed">
-                      Setelah ini kamu akan diarahkan kembali ke form pendaftaran untuk melengkapi data yang belum terisi. Proses verifikasi pembayaran maksimal 2x24 jam.
+                  <div>
+                    <h3 className="text-lg font-black text-brand-navy">{isScholarshipPackage ? 'Siap Lanjut Form Pendaftaran' : 'Tidak Perlu Upload Bukti Pembayaran'}</h3>
+                    <p className="text-xs text-slate-600 leading-relaxed mt-1">
+                      {isScholarshipPackage
+                        ? 'Data beasiswa akan direview dari form pendaftaran. Lengkapi data siswa agar admin bisa menilai pengajuan.'
+                        : 'Kelas gratis otomatis dicatat di sistem. Lengkapi form pendaftaran untuk membuat akun belajar.'}
                     </p>
                   </div>
-
-                  <div className="flex gap-3">
-                    <button onClick={() => setIsManualOpen(false)} className="flex-1 btn-secondary">Tutup</button>
-                    <button onClick={() => setView('finalRegistration')} className="flex-1 btn-primary">Lanjut Form Pendaftaran</button>
-                  </div>
+                </div>
+                <button onClick={() => setView('finalRegistration')} className="w-full btn-primary py-4">
+                  Lanjut Isi Form Pendaftaran
+                </button>
+              </div>
+            ) : (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 text-left space-y-5">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-brand-blue flex items-center justify-center shrink-0">
+                  <Upload size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-brand-navy">Upload Bukti Pembayaran</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Upload screenshot/struk pembayaran, lalu tunggu verifikasi admin maksimal 2x24 jam.
+                  </p>
                 </div>
               </div>
+
+              <label className="block">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">File bukti pembayaran</span>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(event) => {
+                    setProofFile(event.target.files?.[0] || null);
+                    setProofError('');
+                    setProofSubmitted(false);
+                  }}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-brand-blue file:px-4 file:py-2 file:text-xs file:font-bold file:text-white"
+                />
+              </label>
+
+              {proofFile && (
+                <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-600">
+                  File dipilih: <span className="font-bold text-brand-navy">{proofFile.name}</span>
+                </div>
+              )}
+
+              {proofError && <p className="text-xs font-bold text-red-500">{proofError}</p>}
+
+              {proofSubmitted ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex gap-3">
+                  <CheckCircle2 size={20} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-emerald-900 leading-relaxed">
+                    Bukti pembayaran terkirim. Admin akan memverifikasi pembayaran maksimal 2x24 jam.
+                  </p>
+                  <button onClick={() => setView('finalRegistration')} className="w-full btn-primary py-3 mt-4">
+                    Lanjut Isi Form Pendaftaran
+                  </button>
+                </div>
+              ) : (
+                <button onClick={submitProof} className="w-full btn-primary py-4">
+                  Kirim Bukti Pembayaran
+                </button>
+              )}
+
+              <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex gap-3">
+                <Clock size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-900 leading-relaxed">
+                  Proses verifikasi maksimal 2x24 jam setelah bukti pembayaran diterima. Paket gratis dan beasiswa tidak membutuhkan upload bukti pembayaran.
+                </p>
+              </div>
+            </div>
             )}
           </motion.div>
         )}
